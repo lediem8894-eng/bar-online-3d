@@ -1,10 +1,455 @@
-<!DOCTYPE html>
+
+<!doctype html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bar Online 3D</title>
-<style>body{background:#140922;color:white;text-align:center;font-family:Arial;padding:50px 15px}h1{color:#f065ed}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BAR ONLINE 3D</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090514;color:#fff;font:14px system-ui,Arial}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;background:#190d2d}
+.brand{color:#f5a0ff;font-size:20px}
+#view{height:53vh;min-height:330px;position:relative;touch-action:none}
+#view canvas{display:block}
+#tip{position:absolute;bottom:9px;left:9px;background:#150b29d9;padding:7px 10px;border-radius:9px;font-size:12px;pointer-events:none}
+.pill{background:#43245b;padding:8px 10px;border-radius:16px}
+.panel{background:#1a102e;margin:11px;padding:14px;border:1px solid #51356e;border-radius:15px}
+h3{margin:0 0 11px;color:#f5b4ff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.gifts{grid-template-columns:repeat(3,1fr)}
+button{border:1px solid #754b94;background:#43265f;color:white;border-radius:11px;padding:11px 7px;font:inherit;cursor:pointer}
+button.sel{border:2px solid #ff85ed;background:#77377f}
+.main{background:linear-gradient(90deg,#a127c7,#e52c98);width:100%;margin-top:10px}
+p{line-height:1.5}
+small{color:#c9b7d9}
+#notice{color:#ffb9ef;min-height:20px;margin-top:10px}
+#chatlog{height:90px;overflow:auto;font-size:13px;color:#e1cbe9}
+input{width:70%;background:#29183c;color:white;border:1px solid #694583;border-radius:10px;padding:11px}
+#burst{position:fixed;top:30%;left:0;width:100%;text-align:center;font-size:38px;text-shadow:0 0 25px #ff4edb;pointer-events:none;opacity:0;transition:opacity .2s;z-index:5}
+</style>
 </head>
-<body><h1>🍸 BAR ONLINE 3D</h1><p>Website đã hoạt động!</p><p>Đang chuẩn bị sân khấu DJ 3D...</p></body>
+<body>
+<header>
+<b class="brand">🍸 BAR ONLINE 3D</b>
+<span class="pill">🪙 <span id="balance">1000</span> xu</span>
+</header>
+
+<div id="view">
+<div id="tip">Vuốt ngang để xoay • Chạm bàn để chọn</div>
+</div>
+<div id="burst"></div>
+
+<section class="panel">
+<h3>🥂 Bàn VIP</h3>
+<div id="tables" class="grid"></div>
+<p id="chosen">Đang chọn VIP 01</p>
+<div class="grid">
+<button data-invite="ghép bàn">👥 Ghép bàn</button>
+<button data-invite="mời đồ uống">🍸 Mời đồ uống</button>
+<button data-invite="làm quen">💕 Làm quen</button>
+<button data-invite="hẹn hò">💌 Hẹn hò</button>
+</div>
+<div id="notice"></div>
+<div id="reply" class="grid"></div>
+</section>
+
+<section class="panel">
+<h3>🎧 DJ NOVA</h3>
+<p id="track">Neon Pulse • EDM demo</p>
+<div class="grid">
+<button id="play">▶ Bật nhạc</button>
+<button id="next">⏭ Bài tiếp</button>
+</div>
+<p><small>Chọn nhạc tiếp theo (bình chọn mô phỏng)</small></p>
+<div id="songs" class="grid"></div>
+<small>Nhạc là beat gốc tạo bằng Web Audio, không phát bản thu thương mại.</small>
+</section>
+
+<section class="panel">
+<h3>🎁 Quà tặng sân khấu</h3>
+<div id="gifts" class="grid gifts"></div>
+<button id="give" class="main">Tặng quà</button>
+</section>
+
+<section class="panel">
+<h3>💬 Chat demo</h3>
+<div id="chatlog">DJ Nova: Chào mừng đến Bar Online!<hr></div>
+<input id="chat" placeholder="Nhập tin nhắn">
+<button id="send">Gửi</button>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+<script>
+
+const $=id=>document.getElementById(id);
+let coins=1000,table=1,gift=0,track=0;
+const giftList=[
+['🌹','Hoa',10],
+['🍸','Cocktail',30],
+['🎈','Bóng neon',50],
+['💨','Khói sân khấu',100],
+['🍾','Champagne',300],
+['💃','Dancer',500]
+];
+const tracks=['Neon Pulse','Midnight Drive','Purple Energy'];
+
+function burst(t){
+$('burst').textContent=t;
+$('burst').style.opacity=1;
+setTimeout(()=>$('burst').style.opacity=0,1400);
+}
+
+function choose(n){
+table=n;
+$('chosen').textContent='Đang chọn VIP '+String(n).padStart(2,'0');
+renderTables();
+}
+
+function renderTables(){
+$('tables').innerHTML=Array.from({length:6},(_,i)=>
+`<button class="${table===i+1?'sel':''}" data-table="${i+1}">
+🥂 VIP ${String(i+1).padStart(2,'0')}</button>`
+).join('');
+}
+
+function renderGifts(){
+$('gifts').innerHTML=giftList.map((g,i)=>
+`<button class="${gift===i?'sel':''}" data-gift="${i}">
+${g[0]}<br>${g[1]}<br>🪙 ${g[2]}</button>`
+).join('');
+}
+
+renderTables();
+renderGifts();
+
+$('tables').onclick=e=>{
+let b=e.target.closest('[data-table]');
+if(b)choose(+b.dataset.table);
+};
+
+$('gifts').onclick=e=>{
+let b=e.target.closest('[data-gift]');
+if(b){
+gift=+b.dataset.gift;
+renderGifts();
+}
+};
+
+document.querySelectorAll('[data-invite]').forEach(b=>{
+b.onclick=()=>{
+$('notice').textContent=
+`Đã gửi lời mời ${b.dataset.invite} tới VIP ${table}`;
+$('reply').innerHTML=
+'<button id="yes">✓ Đồng ý</button><button id="no">✕ Từ chối</button>';
+$('yes').onclick=()=>reply(true);
+$('no').onclick=()=>reply(false);
+};
+});
+
+function reply(ok){
+$('notice').textContent=ok?
+'Lời mời đã được chấp nhận (mô phỏng)':
+'Lời mời đã bị từ chối';
+$('reply').innerHTML='';
+}
+
+$('give').onclick=()=>{
+let g=giftList[gift];
+if(coins<g[2])return burst('Không đủ xu');
+coins-=g[2];
+$('balance').textContent=coins;
+burst(g[0]+' '+g[1]);
+for(let i=0;i<18;i++)particle();
+};
+
+$('send').onclick=()=>{
+let s=$('chat').value.trim();
+if(!s)return;
+let d=document.createElement('div');
+d.textContent='Bạn: '+s;
+$('chatlog').append(d);
+$('chat').value='';
+$('chatlog').scrollTop=9999;
+};
+
+$('songs').innerHTML=tracks.map((s,i)=>
+`<button data-song="${i}">${s} ♡</button>`
+).join('');
+
+$('songs').onclick=e=>{
+let b=e.target.closest('[data-song]');
+if(b){
+track=+b.dataset.song;
+$('track').textContent=tracks[track]+' • DJ demo';
+burst('🎵 Đã bình chọn');
+}
+};
+
+$('next').onclick=()=>{
+track=(track+1)%tracks.length;
+$('track').textContent=tracks[track]+' • DJ demo';
+};
+
+let audio=null,beatTimer=null,step=0;
+
+function note(freq,dur=.16,volume=.08){
+let o=audio.createOscillator();
+let g=audio.createGain();
+o.type='sine';
+o.frequency.setValueAtTime(freq,audio.currentTime);
+o.frequency.exponentialRampToValueAtTime(
+Math.max(35,freq*.55),audio.currentTime+dur);
+g.gain.setValueAtTime(volume,audio.currentTime);
+g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
+o.connect(g).connect(audio.destination);
+o.start();
+o.stop(audio.currentTime+dur);
+}
+
+$('play').onclick=async()=>{
+if(audio){
+clearInterval(beatTimer);
+await audio.close();
+audio=null;
+$('play').textContent='▶ Bật nhạc';
+return;
+}
+try{
+audio=new(window.AudioContext||window.webkitAudioContext)();
+await audio.resume();
+beatTimer=setInterval(()=>{
+note(step%4===0?115:75,.18,step%4===0?.16:.06);
+step++;
+},300);
+$('play').textContent='⏸ Tắt nhạc';
+}catch(e){
+burst('Không bật được âm thanh');
+}
+};
+
+let scene,camera,renderer;
+let actors=[],particles=[],tablePositions=[],angle=0;
+
+function particle(){
+if(!scene)return;
+let m=new THREE.Mesh(
+new THREE.SphereGeometry(.08,8,8),
+new THREE.MeshBasicMaterial({
+color:Math.random()>.5?0xff56df:0x53c9ff
+})
+);
+m.position.set((Math.random()-.5)*8,1.5,Math.random()*3-5);
+m.userData.v=new THREE.Vector3(
+(Math.random()-.5)*.05,
+.03+Math.random()*.04,
+(Math.random()-.5)*.05
+);
+scene.add(m);
+particles.push(m);
+}
+
+if(!window.THREE){
+$('view').insertAdjacentHTML('beforeend',
+'<p style="padding:50px">Không tải được thư viện 3D. Kiểm tra Internet rồi tải lại trang.</p>');
+}else{
+scene=new THREE.Scene();
+scene.background=new THREE.Color(0x090416);
+scene.fog=new THREE.Fog(0x090416,17,38);
+
+camera=new THREE.PerspectiveCamera(58,1,.1,100);
+camera.position.set(0,7,16);
+camera.lookAt(0,1,-3);
+
+renderer=new THREE.WebGLRenderer({
+antialias:true,
+powerPreference:'low-power'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+$('view').prepend(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xa46cff,1.5));
+
+let a=new THREE.PointLight(0xff19d2,50,24);
+a.position.set(-5,7,-5);
+scene.add(a);
+
+let b=new THREE.PointLight(0x229dff,50,24);
+b.position.set(5,7,-5);
+scene.add(b);
+
+function block(w,h,d,c,x,y,z){
+let m=new THREE.Mesh(
+new THREE.BoxGeometry(w,h,d),
+new THREE.MeshStandardMaterial({
+color:c,metalness:.5,roughness:.4
+})
+);
+m.position.set(x,y,z);
+scene.add(m);
+return m;
+}
+
+// Sàn và sân khấu
+block(26,.2,26,0x180b27,0,-.1,0);
+block(14,.7,5,0x39104e,0,.35,-7);
+block(14,5,.2,0x4d0b79,0,3,-9.5);
+
+// Đèn LED phía sau DJ
+for(let i=0;i<16;i++){
+block(.2,3.7,.12,
+i%2?0xff25d6:0x13bbff,
+-6.3+i*.84,3,-9.3);
+}
+
+// Bàn DJ
+block(3,1,1,0x241335,0,1.55,-7);
+block(3,.12,1,0xf02ace,0,2.12,-7);
+
+// Tạo nhân vật 3D
+function person(x,z,c){
+let g=new THREE.Group();
+g.position.set(x,.7,z);
+
+let mat=new THREE.MeshStandardMaterial({color:c});
+let skin=new THREE.MeshStandardMaterial({color:0xffc7a5});
+
+let torso=new THREE.Mesh(
+new THREE.CylinderGeometry(.23,.29,.8,10),mat);
+torso.position.y=1.05;
+g.add(torso);
+
+let head=new THREE.Mesh(
+new THREE.SphereGeometry(.23,12,10),skin);
+head.position.y=1.68;
+g.add(head);
+
+let arms=[];
+
+for(let s of [-1,1]){
+let arm=new THREE.Group();
+arm.position.set(s*.32,1.35,0);
+
+let limb=new THREE.Mesh(
+new THREE.BoxGeometry(.14,.65,.16),skin);
+limb.position.y=-.3;
+arm.add(limb);
+g.add(arm);
+arms.push(arm);
+
+let leg=new THREE.Mesh(
+new THREE.BoxGeometry(.18,.7,.2),mat);
+leg.position.set(s*.16,.36,0);
+g.add(leg);
+}
+scene.add(g);
+actors.push({g,arms,x,z});
+}
+
+// DJ và hai dancer trên sân khấu
+person(0,-7,0x17151f);
+person(-4,-7,0xff2299);
+person(4,-7,0x703aff);
+
+// Sáu bàn VIP
+for(let i=0;i<6;i++){
+let x=(i%3-1)*5;
+let z=Math.floor(i/3)*4-1;
+tablePositions.push({x,z,n:i+1});
+
+let m=new THREE.Mesh(
+new THREE.CylinderGeometry(.8,.8,.12,24),
+new THREE.MeshStandardMaterial({
+color:0x693185,metalness:.7,roughness:.3
+})
+);
+m.position.set(x,.7,z);
+scene.add(m);
+
+block(.25,.7,.25,0xa56dce,x,.35,z);
+person(x-1,z+.5,0x9c35ff);
+person(x+1,z+.5,0xff379b);
+}
+
+// Xoay góc nhìn bằng ngón tay
+let down=null;
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+down={x:e.clientX,y:e.clientY,prev:e.clientX};
+renderer.domElement.setPointerCapture(e.pointerId);
+});
+
+renderer.domElement.addEventListener('pointermove',e=>{
+if(!down)return;
+angle+=(e.clientX-down.prev)*.006;
+down.prev=e.clientX;
+camera.position.set(Math.sin(angle)*16,7,Math.cos(angle)*16);
+camera.lookAt(0,1,-3);
+});
+
+renderer.domElement.addEventListener('pointerup',e=>{
+if(!down)return;
+
+if(Math.hypot(e.clientX-down.x,e.clientY-down.y)<12){
+let r=renderer.domElement.getBoundingClientRect();
+let p=new THREE.Vector2(
+(e.clientX-r.left)/r.width*2-1,
+-(e.clientY-r.top)/r.height*2+1
+);
+
+let nearest=null,dist=99;
+for(let t of tablePositions){
+let q=new THREE.Vector3(t.x,.7,t.z).project(camera);
+let d=Math.hypot(q.x-p.x,q.y-p.y);
+if(d<dist){dist=d;nearest=t;}
+}
+if(nearest&&dist<.25)choose(nearest.n);
+}
+down=null;
+});
+
+function resize(){
+let w=$('view').clientWidth;
+let h=$('view').clientHeight;
+camera.aspect=w/h;
+camera.updateProjectionMatrix();
+renderer.setSize(w,h);
+}
+window.addEventListener('resize',resize);
+resize();
+
+// Chuyển động dancer và ánh sáng
+let clock=new THREE.Clock();
+
+function frame(){
+requestAnimationFrame(frame);
+let t=clock.getElapsedTime();
+
+actors.forEach((actor,i)=>{
+actor.g.position.y=.7+Math.sin(t*3+i)*.09;
+actor.g.rotation.y=Math.sin(t*1.3+i)*.25;
+actor.arms[0].rotation.z=Math.sin(t*3+i)*.8;
+actor.arms[1].rotation.z=-Math.sin(t*3+i+1)*.8;
+});
+
+a.intensity=40+Math.sin(t*3)*15;
+b.intensity=40+Math.cos(t*3)*15;
+
+particles=particles.filter(m=>{
+m.position.add(m.userData.v);
+if(m.position.y>7){
+scene.remove(m);
+m.geometry.dispose();
+m.material.dispose();
+return false;
+}
+return true;
+});
+
+renderer.render(scene,camera);
+}
+frame();
+}
+</script>
+</body>
 </html>
